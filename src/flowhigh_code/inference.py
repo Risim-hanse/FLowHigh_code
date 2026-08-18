@@ -3,7 +3,7 @@ import torch
 import argparse
 import numpy as np
 # import csv
-from cfm_superresolution import (
+from .cfm_superresolution import (
     MelVoco,
     FLowHigh,
     ConditionalFlowMatcherWrapper
@@ -14,7 +14,7 @@ from scipy.io.wavfile import write
 # from utils import plot_tensor,save_plot,save_stft_plot
 # import matplotlib.pyplot as plt
 # from einops import rearrange
-from postprocessing import PostProcessing
+from .postprocessing import PostProcessing
 from tqdm import tqdm
 import librosa
 import scipy
@@ -73,10 +73,10 @@ def super_resolution(input_path, output_dir, target_sampling_rate, upsampling_me
             
             # save high resolution sample
             HR_audio_pp_npy = (HR_audio_pp.cpu().squeeze().clamp(-1,1).numpy()*32767.0).astype(np.int16) 
-            write(save_dir, target_sampling_rate, HR_audio_pp_npy)          
+            write(save_dir, target_sampling_rate, HR_audio_pp_npy)
 
+def main():
 
-if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Speech super-resolution with CFM")
     parser.add_argument('--input_path', type=str, required=True, help="path of input low-resoltuion audio")
     parser.add_argument('--output_path', type=str, required=True, help="path of output high-resolution audio")
@@ -107,7 +107,8 @@ if __name__ == '__main__':
         os.makedirs(output_dir)
     
     # for post-processing
-    pp = PostProcessing(0)
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    pp = PostProcessing(0 if torch.cuda.is_available() else 'cpu')
 
     print(f'Initializing FLowHigh...')
     audio_enc_dec_type_for_infer = MelVoco(n_mels= args.n_mels, 
@@ -139,8 +140,8 @@ if __name__ == '__main__':
     cfm_wrapper.load_state_dict(model_checkpoint['model']) # dict_keys(['model', 'optim', 'scheduler'])
 
     print(f'Setting the model to evalutaion mode ...')       
-    SR_generator = SR_generator.cuda().eval()
-    cfm_wrapper = cfm_wrapper.cuda().eval()
+    SR_generator = SR_generator.to(device).eval()
+    cfm_wrapper = cfm_wrapper.to(device).eval()
 
     number = sum(p.numel() for p in cfm_wrapper.parameters() if p.requires_grad)
     if number >= 1_000_000:
@@ -166,3 +167,6 @@ if __name__ == '__main__':
                         pp,
                         args.cfm_method,
                         )
+
+if __name__ == '__main__':
+    main()

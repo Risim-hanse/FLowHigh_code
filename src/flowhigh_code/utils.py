@@ -18,9 +18,17 @@ def plot_tensor(tensor):
     return data
 
 def save_figure_to_numpy(fig):
-    data = np.fromstring(fig.canvas.tostring_rgb(), dtype=np.uint8, sep='')
-    data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
-    return data
+    # matplotlib 3.8+ removed tostring_rgb(); numpy 2 removed fromstring (binary)
+    # Use buffer_rgba -> RGB with frombuffer, fallback for <3.8
+    try:
+        # buffer_rgba returns (h, w, 4) RGBA; slice to RGB
+        rgba = np.asarray(fig.canvas.buffer_rgba())
+        rgb = rgba[:, :, :3]
+        return np.array(rgb, dtype=np.uint8)
+    except Exception:
+        data = np.frombuffer(fig.canvas.tostring_rgb(), dtype=np.uint8)
+        data = data.reshape(fig.canvas.get_width_height()[::-1] + (3,))
+        return data
 
 def save_plot(tensor, savepath):
     plt.style.use('default')
@@ -90,7 +98,9 @@ class STFTMag(nn.Module):
         self.hop = hop
         # self.register_buffer('window', torch.hann_window(window_len), False)
         self.window_length = window_len
-        self.window = torch.hann_window(window_len).cuda()
+        # CPU-compatible: don't hard-code .cuda()
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        self.window = torch.hann_window(window_len).to(device)
 
     #x: [B,T] or [T]
     @torch.no_grad()

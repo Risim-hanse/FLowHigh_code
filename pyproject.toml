@@ -1,0 +1,39 @@
+[project]
+name = "flowhigh-code"
+version = "0.0.1"
+description = "FLowHigh: Towards Efficient and High-Quality Audio Super-Resolution with Single-Step Flow Matching"
+readme = "README.md"
+authors = [
+    { name = "Risim", email = "risim-hanse@eclipso.me" }
+]
+requires-python = ">=3.12"
+dependencies = [
+    "torch>=2.4.1",
+    "torchaudio>=2.4.1",
+    "torchinfo>=1.8.0",
+    "torchdiffeq>=0.2.3",
+    "torchode==1.0.1",
+    "einops>=0.8.0",
+    "beartype>=0.17.2",
+    "librosa>=0.10.1",
+    "matplotlib>=3.8.4",
+    "numpy>=1.26.4",
+    "packaging>=24.1",
+    "scipy>=1.13.0",
+    "gateloop_transformer>=0.2.4",
+    "accelerate>=0.28.0",
+    "tensorboard>=2.0",
+]
+
+[project.scripts]
+flowhigh-code = "flowhigh_code:main"
+flowhigh-train = "flowhigh_code.train:main"
+flowhigh-infer = "flowhigh_code.inference:main"
+
+[build-system]
+requires = ["uv_build>=0.12.5,<0.13.0"]
+build-backend = "uv_build"
+
+[tool.uv]
+cache-dir = "/tmp/uv-cache"
+link-mode = "copy"

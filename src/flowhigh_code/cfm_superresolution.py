@@ -18,12 +18,12 @@ from einops import rearrange, repeat, reduce, pack, unpack
 import torchaudio.transforms as T
 from torchaudio.functional import resample
 from librosa.filters import mel as librosa_mel_fn
-from utils import sequence_mask
+from .utils import sequence_mask
 import numpy
 import matplotlib.pyplot as plt
-from modules import LearnedSinusoidalPosEmb, ConvPositionEmbed, Transformer, ConvNeXtBlock
-from postprocessing import PostProcessing
-from init_vocoder import init_bigvgan
+from .modules import LearnedSinusoidalPosEmb, ConvPositionEmbed, Transformer, ConvNeXtBlock
+from .postprocessing import PostProcessing
+from .init_vocoder import init_bigvgan
 
 LOGGER = logging.getLogger(__file__)
 logging.basicConfig(filename='model_debug.log', level=logging.INFO)
@@ -212,7 +212,11 @@ class MelVoco(AudioEncoderDecoder):
 
         global mel_basis, hann_window
         if self.f_max not in mel_basis:
-            mel = librosa_mel_fn(self.sampling_rate, self.n_fft, self.n_mels, self.f_min, self.f_max)
+            # librosa 1.0+ requires keyword args (sr=, n_fft=, n_mels=, fmin=, fmax=)
+            try:
+                mel = librosa_mel_fn(self.sampling_rate, self.n_fft, self.n_mels, self.f_min, self.f_max)
+            except TypeError:
+                mel = librosa_mel_fn(sr=self.sampling_rate, n_fft=self.n_fft, n_mels=self.n_mels, fmin=self.f_min, fmax=self.f_max)
             mel_basis[str(self.f_max)+'_'+str(audio.device)] = torch.from_numpy(mel).float().to(audio.device)
             hann_window[str(audio.device)] = torch.hann_window(self.win_length).to(audio.device)
 
@@ -237,9 +241,9 @@ class MelVoco(AudioEncoderDecoder):
             win_length = self.win_length,
             hop_length = self.hop_length,
             window_fn = torch.hann_window
-        ).cuda()
+        ).to(audio.device)
 
-        audio = audio.cuda()
+        # audio already on correct device, no .cuda()
         spectrogram = stft_transform(audio)
 
         mel_transform = T.MelScale(
@@ -247,7 +251,7 @@ class MelVoco(AudioEncoderDecoder):
             sample_rate = self.sampling_rate,
             n_stft = self.n_fft // 2 + 1,
             f_max = self.f_max
-        ).cuda()
+        ).to(audio.device)
 
         spec = mel_transform(spectrogram)
         
@@ -507,7 +511,7 @@ class FLowHigh(Module):
                     exit()
                     weight[cutoff_bins:] = high_weight
                         
-                weight = weight.unsqueeze(1).expand(batch, seq_len, n_mels).cuda()
+                weight = weight.unsqueeze(1).expand(batch, seq_len, n_mels).to(x.device)
                 mse_loss = F.mse_loss(x, target, reduction='none') 
                 weighted_mse_loss = mse_loss * weight
                 mean_loss = weighted_mse_loss.mean()
@@ -652,26 +656,26 @@ class ConditionalFlowMatcherWrapper(Module):
             return out # out.shape : [1, Time, mel_channel]
 
         if cfm_method == 'basic_cfm': 
-            y0 = torch.randn_like(cond).cuda()
+            y0 = torch.randn_like(cond).to(cond.device)
 
         elif cfm_method == 'independent_cfm_adaptive':
             # y0 from intended prior
-            epsilon = torch.randn_like(cond).cuda()
+            epsilon = torch.randn_like(cond).to(cond.device)
             y0 = cond*std_1 + epsilon*std_2
 
         elif cfm_method == 'independent_cfm_constant':
             # y0 from intended prior
-            epsilon = torch.randn_like(cond).cuda()
+            epsilon = torch.randn_like(cond).to(cond.device)
             y0 = cond*std_1 + epsilon*std_2
     
         elif cfm_method == 'independent_cfm_mix':
             # y0 from intended prior
-            epsilon = torch.randn_like(cond).cuda()
+            epsilon = torch.randn_like(cond).to(cond.device)
             y0_low = cond*std_1 + epsilon*std_2
             y0_high = epsilon
             y0, _ = self.mel_replace_ops(y0_high, y0_low, cutoff_bins)
             
-        t = torch.linspace(0, 1, time_steps + 1, device = self.device).cuda()
+        t = torch.linspace(0, 1, time_steps + 1, device = self.device).to(cond.device)
         if not self.use_torchode:
 
             LOGGER.debug('sampling with torchdiffeq')

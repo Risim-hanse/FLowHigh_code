@@ -6,23 +6,23 @@ import numpy as np
 from torch.utils.tensorboard import SummaryWriter
 import torchaudio 
 from torchinfo import summary
-from data import AudioDataset
+from .data import AudioDataset
 
-from cfm_superresolution import (
+from .cfm_superresolution import (
     FLowHigh,
     MelVoco,
     ConditionalFlowMatcherWrapper
 )
 
-from trainer import FLowHighTrainer
+from .trainer import FLowHighTrainer
 
 def load_config(config_path):
     with open(config_path, 'r') as file:
         config_dict = json.load(file)
     return json.loads(json.dumps(config_dict), object_hook=lambda d: SimpleNamespace(**d))
 
+def main():
 
-if __name__ == "__main__":
     
     assert torch.cuda.is_available(), "CPU training is not allowed."
     n_gpus = torch.cuda.device_count()
@@ -101,5 +101,6 @@ if __name__ == "__main__":
     
     print('Start training...')
     trainer.train()
-    
-    
+
+if __name__ == "__main__":
+    main()
